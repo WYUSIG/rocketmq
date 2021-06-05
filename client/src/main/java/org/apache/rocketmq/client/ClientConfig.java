@@ -98,6 +98,11 @@ public class ClientConfig {
         }
     }
 
+    /**
+     * 判断是否需要包装命名空间
+     * @param resource origin topic
+     * @return
+     */
     public String withNamespace(String resource) {
         return NamespaceUtil.wrapNamespace(this.getNamespace(), resource);
     }

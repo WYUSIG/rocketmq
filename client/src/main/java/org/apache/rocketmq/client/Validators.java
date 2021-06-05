@@ -78,24 +78,34 @@ public class Validators {
         return matcher.matches();
     }
 
+    /**
+     * 校验消息
+     * @param msg 消息
+     * @param defaultMQProducer 消息发送者
+     * @throws MQClientException
+     */
     public static void checkMessage(Message msg, DefaultMQProducer defaultMQProducer)
         throws MQClientException {
+        //如果消息为空，则抛出异常
         if (null == msg) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message is null");
         }
-        // topic
+        //校验topic，是否为空，是否为英文和数字等
         Validators.checkTopic(msg.getTopic());
+        //校验该消息topic是否是不允许发送的topic,如rocketmq内部的topic:OFFSET_MOVED_EVENT
         Validators.isNotAllowedSendTopic(msg.getTopic());
 
-        // body
+        //校验body是否为空
         if (null == msg.getBody()) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message body is null");
         }
 
+        //校验body长度是否为0
         if (0 == msg.getBody().length) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message body length is zero");
         }
 
+        //校验body长度是否大于最大消息长度，默认4M
         if (msg.getBody().length > defaultMQProducer.getMaxMessageSize()) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL,
                 "the message body size over max value, MAX: " + defaultMQProducer.getMaxMessageSize());
@@ -103,16 +113,19 @@ public class Validators {
     }
 
     public static void checkTopic(String topic) throws MQClientException {
+        //校验topic是否为空，是否有空格
         if (UtilAll.isBlank(topic)) {
             throw new MQClientException("The specified topic is blank", null);
         }
 
+        //校验是否匹配正则表达式，英文和数字
         if (!regularExpressionMatcher(topic, PATTERN)) {
             throw new MQClientException(String.format(
                 "The specified topic[%s] contains illegal characters, allowing only %s", topic,
                 VALID_PATTERN_STR), null);
         }
 
+        //校验长度是否超过最大主题长度
         if (topic.length() > TOPIC_MAX_LENGTH) {
             throw new MQClientException(
                 String.format("The specified topic is longer than topic max length %d.", TOPIC_MAX_LENGTH), null);

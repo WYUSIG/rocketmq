@@ -81,26 +81,38 @@ public class NamespaceUtil {
         return resourceWithNamespace;
     }
 
+    /**
+     * topic包装命名空间
+     * @param namespace 命名空间
+     * @param resourceWithOutNamespace 原始topic
+     * @return
+     */
     public static String wrapNamespace(String namespace, String resourceWithOutNamespace) {
+        //如果命名空间为空，或者原始topic为空，则返回原始topic
         if (StringUtils.isEmpty(namespace) || StringUtils.isEmpty(resourceWithOutNamespace)) {
             return resourceWithOutNamespace;
         }
 
+        //如果是系统topic(包括rocketmq自己使用的topic,rmq_sys_开头的topic)，或者已经带上namespace,namespace开头即是，则返回原始topic
         if (isSystemResource(resourceWithOutNamespace) || isAlreadyWithNamespace(resourceWithOutNamespace, namespace)) {
             return resourceWithOutNamespace;
         }
 
+        //如果有重试、死信队列的前缀，则去掉
         String resourceWithoutRetryAndDLQ = withOutRetryAndDLQ(resourceWithOutNamespace);
         StringBuilder stringBuilder = new StringBuilder();
 
+        //如果这个原始topic有%RETRY%，则stringBuilder append一个%RETRY%
         if (isRetryTopic(resourceWithOutNamespace)) {
             stringBuilder.append(MixAll.RETRY_GROUP_TOPIC_PREFIX);
         }
 
+        //如果这个原始topic有%DLQ%，则stringBuilder append一个%DLQ%
         if (isDLQTopic(resourceWithOutNamespace)) {
             stringBuilder.append(MixAll.DLQ_GROUP_TOPIC_PREFIX);
         }
 
+        //返回%RETRY%DLQ%namespace%去掉重试、死信队列的前缀的原始topic
         return stringBuilder.append(namespace).append(NAMESPACE_SEPARATOR).append(resourceWithoutRetryAndDLQ).toString();
 
     }
@@ -136,14 +148,20 @@ public class NamespaceUtil {
         return index > 0 ? resourceWithoutRetryAndDLQ.substring(0, index) : STRING_BLANK;
     }
 
+    /**
+     * topic去掉重试、死信队列前缀
+     * @param originalResource topic
+     * @return
+     */
     private static String withOutRetryAndDLQ(String originalResource) {
         if (StringUtils.isEmpty(originalResource)) {
             return STRING_BLANK;
         }
+        //截取%RETRY%之后的字符串
         if (isRetryTopic(originalResource)) {
             return originalResource.substring(RETRY_PREFIX_LENGTH);
         }
-
+        //截取%DLQ%之后的字符串
         if (isDLQTopic(originalResource)) {
             return originalResource.substring(DLQ_PREFIX_LENGTH);
         }
