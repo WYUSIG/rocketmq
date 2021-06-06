@@ -404,44 +404,64 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
+    /**
+     * 发送rpc请求
+     * @param channel 信道
+     * @param request 请求
+     * @param timeoutMillis 超时时间
+     */
     public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request,
         final long timeoutMillis)
         throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
+        //requestId，自增的
         final int opaque = request.getOpaque();
 
         try {
+            //构建ResponseFuture
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null, null);
+            //放进responseTable里面
             this.responseTable.put(opaque, responseFuture);
+            //获取链接地址
             final SocketAddress addr = channel.remoteAddress();
+            //发送请求并监听
             channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture f) throws Exception {
                     if (f.isSuccess()) {
+                        //发送成功
                         responseFuture.setSendRequestOK(true);
                         return;
                     } else {
+                        //发送失败
                         responseFuture.setSendRequestOK(false);
                     }
 
+                    //responseTable移除该responseFuture
                     responseTable.remove(opaque);
+                    //原因
                     responseFuture.setCause(f.cause());
                     responseFuture.putResponse(null);
                     log.warn("send a request command to channel <" + addr + "> failed.");
                 }
             });
 
+            //等待responseFuture写入response
             RemotingCommand responseCommand = responseFuture.waitResponse(timeoutMillis);
             if (null == responseCommand) {
                 if (responseFuture.isSendRequestOK()) {
+                    //如果发送成功，但是RemotingCommand为空
                     throw new RemotingTimeoutException(RemotingHelper.parseSocketAddressAddr(addr), timeoutMillis,
                         responseFuture.getCause());
                 } else {
+                    //如果发送不成功
                     throw new RemotingSendRequestException(RemotingHelper.parseSocketAddressAddr(addr), responseFuture.getCause());
                 }
             }
 
+            //返回RemotingCommand
             return responseCommand;
         } finally {
+            //responseTable移除该responseFuture
             this.responseTable.remove(opaque);
         }
     }

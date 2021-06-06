@@ -602,9 +602,17 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 从NameServer更新topic路由信息
+     * @param topic 主题
+     * @param isDefault 是否默认
+     * @param defaultMQProducer Producer
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
+            //加锁
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;

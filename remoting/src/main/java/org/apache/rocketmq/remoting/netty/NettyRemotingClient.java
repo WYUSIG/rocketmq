@@ -362,19 +362,28 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * 远程rpc请求
+     */
     @Override
     public RemotingCommand invokeSync(String addr, final RemotingCommand request, long timeoutMillis)
         throws InterruptedException, RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException {
+        //开始时间戳
         long beginStartTime = System.currentTimeMillis();
+        //获取NameServer channel
         final Channel channel = this.getAndCreateChannel(addr);
         if (channel != null && channel.isActive()) {
             try {
+                //执行rpcHook.doBeforeRequest，执行前回调
                 doBeforeRpcHooks(addr, request);
+                //计算花费时间
                 long costTime = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTime) {
                     throw new RemotingTimeoutException("invokeSync call timeout");
                 }
+                //执行rpc请求，返回结果
                 RemotingCommand response = this.invokeSyncImpl(channel, request, timeoutMillis - costTime);
+                //执行rpcHook.doAfterResponse
                 doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(channel), request, response);
                 return response;
             } catch (RemotingSendRequestException e) {
@@ -390,11 +399,16 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                 throw e;
             }
         } else {
+            //如果channel为空或者连接已断开，则在lockChannelTables中remove掉
             this.closeChannel(addr, channel);
             throw new RemotingConnectException(addr);
         }
     }
 
+    /**
+     * 地址为空则创建NameServer channel，否则获取
+     * @param addr 地址
+     */
     private Channel getAndCreateChannel(final String addr) throws RemotingConnectException, InterruptedException {
         if (null == addr) {
             return getAndCreateNameserverChannel();
