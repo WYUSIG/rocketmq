@@ -24,11 +24,26 @@ import org.apache.rocketmq.common.message.MessageQueue;
 
 public class MQFaultStrategy {
     private final static InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 延迟故障容错
+     * key broker名称
+     */
     private final LatencyFaultTolerance<String> latencyFaultTolerance = new LatencyFaultToleranceImpl();
 
+    /**
+     * 发送消息延迟容错开关
+     */
     private boolean sendLatencyFaultEnable = false;
 
+    /**
+     * 延迟级别数组
+     */
     private long[] latencyMax = {50L, 100L, 550L, 1000L, 2000L, 3000L, 15000L};
+
+    /**
+     * 不可用时长数组
+     */
     private long[] notAvailableDuration = {0L, 0L, 30000L, 60000L, 120000L, 180000L, 600000L};
 
     public long[] getNotAvailableDuration() {
@@ -55,6 +70,11 @@ public class MQFaultStrategy {
         this.sendLatencyFaultEnable = sendLatencyFaultEnable;
     }
 
+    /**
+     * 根据TopicPublishInfo选择一个消息队列
+     * @param lastBrokerName 最近一次发送的broker名称
+     * @return
+     */
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
         if (this.sendLatencyFaultEnable) {
             try {
@@ -87,6 +107,7 @@ public class MQFaultStrategy {
             return tpInfo.selectOneMessageQueue();
         }
 
+        //如果不打开延迟容错开关，直接选择最近一次的MessageQueue，如果最近一次为空，则执行轮询策略
         return tpInfo.selectOneMessageQueue(lastBrokerName);
     }
 
