@@ -26,10 +26,12 @@ public class ThreadLocalIndex {
     public int getAndIncrement() {
         Integer index = this.threadLocalIndex.get();
         if (null == index) {
+            //随机数开始
             index = Math.abs(random.nextInt());
             this.threadLocalIndex.set(index);
         }
 
+        //+1
         index = Math.abs(index + 1);
         this.threadLocalIndex.set(index);
         return index;

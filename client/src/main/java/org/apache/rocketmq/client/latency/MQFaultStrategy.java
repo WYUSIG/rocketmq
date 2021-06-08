@@ -76,18 +76,24 @@ public class MQFaultStrategy {
      * @return
      */
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
+        //如果开启延迟容错开关
         if (this.sendLatencyFaultEnable) {
             try {
+                //该线程的轮询下标
                 int index = tpInfo.getSendWhichQueue().getAndIncrement();
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
+                    //从改下标下一位开始
                     int pos = Math.abs(index++) % tpInfo.getMessageQueueList().size();
                     if (pos < 0)
                         pos = 0;
+                    //获取MessageQueue
                     MessageQueue mq = tpInfo.getMessageQueueList().get(pos);
+                    //如果该MessageQueue的broker可用，则直接返回，否则循环
                     if (latencyFaultTolerance.isAvailable(mq.getBrokerName()))
                         return mq;
                 }
 
+                //没有更好的broker选择，随机选择一个
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
                 int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
                 if (writeQueueNums > 0) {
