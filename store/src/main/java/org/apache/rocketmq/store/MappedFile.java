@@ -77,6 +77,10 @@ public class MappedFile extends ReferenceResource {
         init(fileName, fileSize, transientStorePool);
     }
 
+    /**
+     * 确保文件目录创建了
+     * @param dirName
+     */
     public static void ensureDirOK(final String dirName) {
         if (dirName != null) {
             File f = new File(dirName);
@@ -148,19 +152,32 @@ public class MappedFile extends ReferenceResource {
         this.transientStorePool = transientStorePool;
     }
 
+    /**
+     * 创建文件初始化
+     * @param fileName 文件路径
+     * @param fileSize 文件偏移量大小
+     * @throws IOException
+     */
     private void init(final String fileName, final int fileSize) throws IOException {
         this.fileName = fileName;
         this.fileSize = fileSize;
+        //创建文件
         this.file = new File(fileName);
+        //文件创建偏移量
         this.fileFromOffset = Long.parseLong(this.file.getName());
         boolean ok = false;
 
+        //确保创建文件目录
         ensureDirOK(this.file.getParent());
 
         try {
+            //获得文件channel，rw权限
             this.fileChannel = new RandomAccessFile(this.file, "rw").getChannel();
+            //获取MappedByteBuffer
             this.mappedByteBuffer = this.fileChannel.map(MapMode.READ_WRITE, 0, fileSize);
+            //计算总映射文件虚拟大小(偏移量大小)
             TOTAL_MAPPED_VIRTUAL_MEMORY.addAndGet(fileSize);
+            //计算总映射文件数
             TOTAL_MAPPED_FILES.incrementAndGet();
             ok = true;
         } catch (FileNotFoundException e) {
@@ -196,14 +213,25 @@ public class MappedFile extends ReferenceResource {
         return appendMessagesInner(messageExtBatch, cb);
     }
 
+    /**
+     * 存储消息
+     * @param messageExt 消息
+     * @param cb 回调，CommitLog回调存储消息
+     * @return
+     */
     public AppendMessageResult appendMessagesInner(final MessageExt messageExt, final AppendMessageCallback cb) {
+        //消息不为空
         assert messageExt != null;
+        //断言判断回调不为空
         assert cb != null;
 
+        //获取append写入位置
         int currentPos = this.wrotePosition.get();
-
+        //如果写入位置小于文件偏移量大小，正常写
         if (currentPos < this.fileSize) {
+            //writeBuffer > mappedByteBuffer
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
+            //设置byteBuffer位置
             byteBuffer.position(currentPos);
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
@@ -211,12 +239,17 @@ public class MappedFile extends ReferenceResource {
             } else if (messageExt instanceof MessageExtBatch) {
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBatch) messageExt);
             } else {
+                //未知消息类型
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
             }
+            //写入位置+1
             this.wrotePosition.addAndGet(result.getWroteBytes());
+            //获取存储时间
             this.storeTimestamp = result.getStoreTimestamp();
+            //返回存储结果
             return result;
         }
+        //如果写入位置大于文件偏移量大小，打印错误日志
         log.error("MappedFile.appendMessage return null, wrotePosition: {} fileSize: {}", currentPos, this.fileSize);
         return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
     }

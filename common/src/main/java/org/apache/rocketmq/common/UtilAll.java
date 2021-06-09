@@ -87,11 +87,20 @@ public class UtilAll {
         return sb.toString();
     }
 
+    /**
+     * 根据偏移量获取隐射文件名
+     * @param offset 创建偏移量
+     * @return
+     */
     public static String offset2FileName(final long offset) {
         final NumberFormat nf = NumberFormat.getInstance();
+        //设置整数部分最小位数
         nf.setMinimumIntegerDigits(20);
+        //设置小数部分允许的最大个数
         nf.setMaximumFractionDigits(0);
+        //是否使用分组
         nf.setGroupingUsed(false);
+        //格式化偏移量数字
         return nf.format(offset);
     }
 

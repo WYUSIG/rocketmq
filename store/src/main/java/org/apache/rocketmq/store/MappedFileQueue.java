@@ -37,6 +37,9 @@ public class MappedFileQueue {
 
     private final String storePath;
 
+    /**
+     * 每个文件偏移量大小
+     */
     private final int mappedFileSize;
 
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
@@ -191,29 +194,45 @@ public class MappedFileQueue {
         return 0;
     }
 
+    /**
+     * 获取末尾的映射文件
+     * @param startOffset 起始偏移量
+     * @param needCreate 是否进行创建
+     * @return
+     */
     public MappedFile getLastMappedFile(final long startOffset, boolean needCreate) {
         long createOffset = -1;
+        //尝试获取最后的映射文件
         MappedFile mappedFileLast = getLastMappedFile();
 
+        //如果映射文件为空
         if (mappedFileLast == null) {
+            //计算createOffset,以 this.mappedFileSize 为每个文件大小时，startOffset 所在文件的开始offset
             createOffset = startOffset - (startOffset % this.mappedFileSize);
         }
 
         if (mappedFileLast != null && mappedFileLast.isFull()) {
+            //如果映射文件不为空，而且映射文件已满，则createOffset为文件起始偏移量+文件偏移量大小
             createOffset = mappedFileLast.getFileFromOffset() + this.mappedFileSize;
         }
 
+        //如果createOffset不为-1，而且需要新创建映射文件
         if (createOffset != -1 && needCreate) {
+            //下一个文件路径
             String nextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset);
+            //下下一个文件路径
             String nextNextFilePath = this.storePath + File.separator
                 + UtilAll.offset2FileName(createOffset + this.mappedFileSize);
             MappedFile mappedFile = null;
 
+            //如果allocateMappedFileService不为空，则使用allocateMappedFileService进行创建
             if (this.allocateMappedFileService != null) {
+                //创建文件
                 mappedFile = this.allocateMappedFileService.putRequestAndReturnMappedFile(nextFilePath,
                     nextNextFilePath, this.mappedFileSize);
             } else {
                 try {
+                    //否则调用构造函数进行创建
                     mappedFile = new MappedFile(nextFilePath, this.mappedFileSize);
                 } catch (IOException e) {
                     log.error("create mappedFile exception", e);
@@ -222,14 +241,18 @@ public class MappedFileQueue {
 
             if (mappedFile != null) {
                 if (this.mappedFiles.isEmpty()) {
+                    //设置为第一个文件
                     mappedFile.setFirstCreateInQueue(true);
                 }
+                //往mappedFiles列表添加该映射文件
                 this.mappedFiles.add(mappedFile);
             }
 
+            //返回新创建的文件
             return mappedFile;
         }
 
+        //返回mappedFiles里面最后的文件
         return mappedFileLast;
     }
 
@@ -237,11 +260,17 @@ public class MappedFileQueue {
         return getLastMappedFile(startOffset, true);
     }
 
+    /**
+     * 获取最后的映射文件
+     * @return
+     */
     public MappedFile getLastMappedFile() {
         MappedFile mappedFileLast = null;
 
+        //当记录所有映射文件的CopyOnWriteArrayList不为空时
         while (!this.mappedFiles.isEmpty()) {
             try {
+                //获取CopyOnWriteArrayList最后的一个文件
                 mappedFileLast = this.mappedFiles.get(this.mappedFiles.size() - 1);
                 break;
             } catch (IndexOutOfBoundsException e) {
@@ -251,7 +280,7 @@ public class MappedFileQueue {
                 break;
             }
         }
-
+        //返回
         return mappedFileLast;
     }
 
