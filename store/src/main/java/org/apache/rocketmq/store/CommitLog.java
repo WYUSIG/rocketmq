@@ -1529,14 +1529,31 @@ public class CommitLog {
 
     class DefaultAppendMessageCallback implements AppendMessageCallback {
         // File at the end of the minimum fixed length empty
+        /**
+         * 距离文件末尾最少的偏移量长度
+         */
         private static final int END_FILE_MIN_BLANK_LENGTH = 4 + 4;
+        /**
+         * 存储在内存中的消息id ByteBuffer
+         */
         private final ByteBuffer msgIdMemory;
         private final ByteBuffer msgIdV6Memory;
         // Store the message content
+        /**
+         * 存储在内存中的消息内容字节 ByteBuffer
+         */
         private final ByteBuffer msgStoreItemMemory;
         // The maximum length of the message
+        /**
+         * 消息最大长度
+         */
         private final int maxMessageSize;
         // Build Message Key
+        /**
+         * Build Message Key
+         * {@link #topicQueueTable}的key
+         * 计算方式：topic + "-" + queueId
+         */
         private final StringBuilder keyBuilder = new StringBuilder();
 
         private final StringBuilder msgIdBuilder = new StringBuilder();
@@ -1552,6 +1569,14 @@ public class CommitLog {
             return msgStoreItemMemory;
         }
 
+        /**
+         * 存储消息
+         * @param fileFromOffset 文件起始偏移量
+         * @param byteBuffer 文件byteBuffer
+         * @param maxBlank 剩余偏移量大小
+         * @param msgInner 消息
+         * @return
+         */
         public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank,
             final MessageExtBrokerInner msgInner) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
@@ -1566,6 +1591,7 @@ public class CommitLog {
             ByteBuffer bornHostHolder = ByteBuffer.allocate(bornHostLength);
             ByteBuffer storeHostHolder = ByteBuffer.allocate(storeHostLength);
 
+            //计算commitLog里的msgId
             this.resetByteBuffer(storeHostHolder, storeHostLength);
             String msgId;
             if ((sysflag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0) {
