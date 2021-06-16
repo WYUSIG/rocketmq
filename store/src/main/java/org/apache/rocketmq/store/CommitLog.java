@@ -1327,12 +1327,17 @@ public class CommitLog {
         private long printTimes = 0;
 
         public void run() {
+            //打印刷盘开始日志
             CommitLog.log.info(this.getServiceName() + " service started");
 
+            //只要服务还没停止就一直运行
             while (!this.isStopped()) {
+
                 boolean flushCommitLogTimed = CommitLog.this.defaultMessageStore.getMessageStoreConfig().isFlushCommitLogTimed();
 
+                //获取配置的刷盘间隔
                 int interval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushIntervalCommitLog();
+                //获取配置的最小刷盘页数
                 int flushPhysicQueueLeastPages = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushCommitLogLeastPages();
 
                 int flushPhysicQueueThoroughInterval =
@@ -1340,7 +1345,8 @@ public class CommitLog {
 
                 boolean printFlushProgress = false;
 
-                // Print flush progress
+                // Print flush progress 打印刷盘
+                //获取当前时间戳
                 long currentTimeMillis = System.currentTimeMillis();
                 if (currentTimeMillis >= (this.lastFlushTimestamp + flushPhysicQueueThoroughInterval)) {
                     this.lastFlushTimestamp = currentTimeMillis;
