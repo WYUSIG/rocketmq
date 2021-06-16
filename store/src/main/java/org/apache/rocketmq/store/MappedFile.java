@@ -299,9 +299,12 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
+     * 刷盘
+     * @param flushLeastPages 刷盘最小页数
      * @return The current flushed position
      */
     public int flush(final int flushLeastPages) {
+        //如果页数已经足够刷盘
         if (this.isAbleToFlush(flushLeastPages)) {
             if (this.hold()) {
                 int value = getReadPosition();
@@ -309,14 +312,17 @@ public class MappedFile extends ReferenceResource {
                 try {
                     //We only append data to fileChannel or mappedByteBuffer, never both.
                     if (writeBuffer != null || this.fileChannel.position() != 0) {
+                        //如果fileChannel可以写，则调用force把缓存区数据写入本地文件
                         this.fileChannel.force(false);
                     } else {
+                        //如果mappedByteBuffer可以写，则调用force把缓存区数据写入本地文件
                         this.mappedByteBuffer.force();
                     }
                 } catch (Throwable e) {
                     log.error("Error occurred when force data to disk.", e);
                 }
 
+                //更新刷盘位置
                 this.flushedPosition.set(value);
                 this.release();
             } else {
@@ -327,11 +333,19 @@ public class MappedFile extends ReferenceResource {
         return this.getFlushedPosition();
     }
 
+    /**
+     * commit
+     * ps: write->commit->flush
+     * @param commitLeastPages 最小commit页数
+     * @return
+     */
     public int commit(final int commitLeastPages) {
+        //如果writeBuffer还没准备好
         if (writeBuffer == null) {
             //no need to commit data to file channel, so just regard wrotePosition as committedPosition.
             return this.wrotePosition.get();
         }
+        //如果已经可以提交
         if (this.isAbleToCommit(commitLeastPages)) {
             if (this.hold()) {
                 commit0(commitLeastPages);
@@ -351,16 +365,24 @@ public class MappedFile extends ReferenceResource {
     }
 
     protected void commit0(final int commitLeastPages) {
+        //写偏移量
         int writePos = this.wrotePosition.get();
+        //最近提交偏移量
         int lastCommittedPosition = this.committedPosition.get();
 
+        //如果提交的数据页数 大于 最小提交页数
         if (writePos - lastCommittedPosition > commitLeastPages) {
             try {
+                //新建一个缓冲区
                 ByteBuffer byteBuffer = writeBuffer.slice();
+                //设置缓冲区偏移量
                 byteBuffer.position(lastCommittedPosition);
+                //限制缓冲区最大偏移量
                 byteBuffer.limit(writePos);
+                //写入缓冲区
                 this.fileChannel.position(lastCommittedPosition);
                 this.fileChannel.write(byteBuffer);
+                //更新提交偏移量
                 this.committedPosition.set(writePos);
             } catch (Throwable e) {
                 log.error("Error occurred when commit data to FileChannel.", e);
@@ -368,33 +390,54 @@ public class MappedFile extends ReferenceResource {
         }
     }
 
+    /**
+     * 判断是否可以刷盘
+     * @param flushLeastPages 最小刷盘页数
+     * @return
+     */
     private boolean isAbleToFlush(final int flushLeastPages) {
+        //刷盘偏移量
         int flush = this.flushedPosition.get();
+        //写偏移量
         int write = getReadPosition();
 
+        //如果文件已满，返回可以刷盘
         if (this.isFull()) {
             return true;
         }
 
+        //如果最小刷盘页数大于0
         if (flushLeastPages > 0) {
+            //计算 写的页数 - 刷盘的页数 是否大于等于 最小刷盘页数
             return ((write / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE)) >= flushLeastPages;
         }
 
+        //如果最小刷盘页数小于等于0，只需要写偏移量大于刷盘偏移量即可刷盘
         return write > flush;
     }
 
+    /**
+     * 判断是否可以进行提交
+     * @param commitLeastPages 最小提交页数
+     * @return
+     */
     protected boolean isAbleToCommit(final int commitLeastPages) {
+        //刷盘偏移量
         int flush = this.committedPosition.get();
+        //写偏移量
         int write = this.wrotePosition.get();
 
+        //如果文件已满，返回可以进行提交
         if (this.isFull()) {
             return true;
         }
 
+        //如果 已写页数 - 已刷盘页数 >= 最小提交页数，则可以提交
         if (commitLeastPages > 0) {
             return ((write / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE)) >= commitLeastPages;
         }
 
+        //如果最小提交页数 <= 0，只需要写偏移量 > 刷盘偏移量即可提交
         return write > flush;
     }
 
