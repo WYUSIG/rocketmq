@@ -1333,6 +1333,7 @@ public class CommitLog {
             //只要服务还没停止就一直运行
             while (!this.isStopped()) {
 
+                //是否按计划刷新，默认为实时
                 boolean flushCommitLogTimed = CommitLog.this.defaultMessageStore.getMessageStoreConfig().isFlushCommitLogTimed();
 
                 //获取配置的刷盘间隔
@@ -1340,24 +1341,31 @@ public class CommitLog {
                 //获取配置的最小刷盘页数
                 int flushPhysicQueueLeastPages = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushCommitLogLeastPages();
 
+                //获取配置的物理彻底刷盘时间间隔
                 int flushPhysicQueueThoroughInterval =
                     CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushCommitLogThoroughInterval();
 
+                //打印刷盘程序是否开启
                 boolean printFlushProgress = false;
 
                 // Print flush progress 打印刷盘
                 //获取当前时间戳
                 long currentTimeMillis = System.currentTimeMillis();
+
+                //如果当前时间 > 最后刷盘时间 + 物理彻底刷盘时间间隔
                 if (currentTimeMillis >= (this.lastFlushTimestamp + flushPhysicQueueThoroughInterval)) {
+                    //设置最后刷盘时间为当前时间
                     this.lastFlushTimestamp = currentTimeMillis;
                     flushPhysicQueueLeastPages = 0;
                     printFlushProgress = (printTimes++ % 10) == 0;
                 }
 
                 try {
+                    //如果按计划刷新，则进入睡眠周期
                     if (flushCommitLogTimed) {
                         Thread.sleep(interval);
                     } else {
+                        //如果实时刷新
                         this.waitForRunning(interval);
                     }
 
@@ -1365,12 +1373,15 @@ public class CommitLog {
                         this.printFlushProgress();
                     }
 
+                    //开始时间戳
                     long begin = System.currentTimeMillis();
+                    //刷盘
                     CommitLog.this.mappedFileQueue.flush(flushPhysicQueueLeastPages);
                     long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
                     if (storeTimestamp > 0) {
                         CommitLog.this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(storeTimestamp);
                     }
+                    //计算花费时间
                     long past = System.currentTimeMillis() - begin;
                     if (past > 500) {
                         log.info("Flush data to disk costs {} ms", past);
@@ -1382,6 +1393,7 @@ public class CommitLog {
             }
 
             // Normal shutdown, to ensure that all the flush before exit
+            //服务关闭，最多重试10次，来确保刷盘成功
             boolean result = false;
             for (int i = 0; i < RETRY_TIMES_OVER && !result; i++) {
                 result = CommitLog.this.mappedFileQueue.flush(0);

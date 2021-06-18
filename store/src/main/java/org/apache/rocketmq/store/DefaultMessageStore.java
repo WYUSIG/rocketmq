@@ -1509,8 +1509,14 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 把dispatchRequest分发到具体ConsumeQueue中去
+     * @param dispatchRequest
+     */
     public void putMessagePositionInfo(DispatchRequest dispatchRequest) {
+        //根据topic和queueId获取ConsumeQueue
         ConsumeQueue cq = this.findConsumeQueue(dispatchRequest.getTopic(), dispatchRequest.getQueueId());
+        //把消息添加进去
         cq.putMessagePositionInfoWrapper(dispatchRequest);
     }
 
@@ -1565,14 +1571,24 @@ public class DefaultMessageStore implements MessageStore {
 
     class CommitLogDispatcherBuildConsumeQueue implements CommitLogDispatcher {
 
+        /**
+         * 执行调度请求
+         * 1. 非事务消息 或 事务提交消息 建立 消息位置信息 到 ConsumeQueue
+         * 2. 建立 索引信息 到 IndexFile
+         *
+         * @param request 调度请求
+         */
         @Override
         public void dispatch(DispatchRequest request) {
+            //获取事务标记
             final int tranType = MessageSysFlag.getTransactionValue(request.getSysFlag());
             switch (tranType) {
+                //无事务、提交事务
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE:
                     DefaultMessageStore.this.putMessagePositionInfo(request);
                     break;
+                //事务准备好、事务回滚
                 case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE:
                     break;
@@ -1882,8 +1898,14 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 重放消息服务
+     */
     class ReputMessageService extends ServiceThread {
 
+        /**
+         * 开始重放消息的CommitLog物理位置
+         */
         private volatile long reputFromOffset = 0;
 
         public long getReputFromOffset() {
@@ -1915,37 +1937,53 @@ public class DefaultMessageStore implements MessageStore {
             return DefaultMessageStore.this.commitLog.getMaxOffset() - this.reputFromOffset;
         }
 
+        /**
+         * 判断是否需要重放
+         * @return
+         */
         private boolean isCommitLogAvailable() {
+            //重放偏移量小于commitLog最大偏移量即需要
             return this.reputFromOffset < DefaultMessageStore.this.commitLog.getMaxOffset();
         }
 
         private void doReput() {
+            //如果开始重放偏移量小于commitLog最小偏移量，则把开始重放偏移量设置为commitLog最小偏移量
             if (this.reputFromOffset < DefaultMessageStore.this.commitLog.getMinOffset()) {
                 log.warn("The reputFromOffset={} is smaller than minPyOffset={}, this usually indicate that the dispatch behind too much and the commitlog has expired.",
                     this.reputFromOffset, DefaultMessageStore.this.commitLog.getMinOffset());
                 this.reputFromOffset = DefaultMessageStore.this.commitLog.getMinOffset();
             }
+            //重放偏移量小于commitLog最大偏移量,且需要进行下一步的标记为true
             for (boolean doNext = true; this.isCommitLogAvailable() && doNext; ) {
 
+                //如果配置了duplicationEnable=true,而且重放偏移量 >= 确认消费偏移量
                 if (DefaultMessageStore.this.getMessageStoreConfig().isDuplicationEnable()
                     && this.reputFromOffset >= DefaultMessageStore.this.getConfirmOffset()) {
                     break;
                 }
 
+                //根据重放偏移量，获得消息
                 SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
+                //如果消息不为空
                 if (result != null) {
                     try {
+                        //设置重放偏移量为消息开始偏移量
                         this.reputFromOffset = result.getStartOffset();
 
                         for (int readSize = 0; readSize < result.getSize() && doNext; ) {
+
+                            //根据ByteBuffer，解析出消息topic等，构建出DispatchRequest
                             DispatchRequest dispatchRequest =
                                 DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(result.getByteBuffer(), false, false);
+                            //消息长度
                             int size = dispatchRequest.getBufferSize() == -1 ? dispatchRequest.getMsgSize() : dispatchRequest.getBufferSize();
-
+                            //生成dispatchRequest成功/dispatchRequest准备完成
                             if (dispatchRequest.isSuccess()) {
                                 if (size > 0) {
+
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
+                                    //如果不是从节点且是长轮询，通知有新消息
                                     if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole()
                                         && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()) {
                                         DefaultMessageStore.this.messageArrivingListener.arriving(dispatchRequest.getTopic(),
@@ -1954,25 +1992,32 @@ public class DefaultMessageStore implements MessageStore {
                                             dispatchRequest.getBitMap(), dispatchRequest.getPropertiesMap());
                                     }
 
+                                    //重放偏移量 + 消息长度
                                     this.reputFromOffset += size;
                                     readSize += size;
+                                    //如果是从节点
                                     if (DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE) {
+                                        //统计拉取消息数
                                         DefaultMessageStore.this.storeStatsService
                                             .getSinglePutMessageTopicTimesTotal(dispatchRequest.getTopic()).incrementAndGet();
+                                        //统计拉取消息长度数
                                         DefaultMessageStore.this.storeStatsService
                                             .getSinglePutMessageTopicSizeTotal(dispatchRequest.getTopic())
                                             .addAndGet(dispatchRequest.getMsgSize());
                                     }
                                 } else if (size == 0) {
+                                    //如果消息长度为0，则下一个文件
                                     this.reputFromOffset = DefaultMessageStore.this.commitLog.rollNextFile(this.reputFromOffset);
                                     readSize = result.getSize();
                                 }
                             } else if (!dispatchRequest.isSuccess()) {
-
+                                //如果dispatchRequest没有准备好
                                 if (size > 0) {
+                                    //消息长度大于0
                                     log.error("[BUG]read total count not equals msg total size. reputFromOffset={}", reputFromOffset);
                                     this.reputFromOffset += size;
                                 } else {
+                                    //消息长度等于0
                                     doNext = false;
                                     // If user open the dledger pattern or the broker is master node,
                                     // it will not ignore the exception and fix the reputFromOffset variable
@@ -1989,6 +2034,7 @@ public class DefaultMessageStore implements MessageStore {
                         result.release();
                     }
                 } else {
+                    //如果获取到消息为空
                     doNext = false;
                 }
             }
