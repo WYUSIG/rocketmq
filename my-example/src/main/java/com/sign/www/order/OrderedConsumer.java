@@ -1,9 +1,9 @@
 package com.sign.www.order;
 
-import com.sign.www.util.ConsumerUtil;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
 import org.apache.rocketmq.client.consumer.listener.ConsumeOrderlyStatus;
 import org.apache.rocketmq.client.consumer.listener.MessageListenerOrderly;
+import org.apache.rocketmq.common.message.MessageExt;
 
 public class OrderedConsumer {
 
@@ -12,7 +12,10 @@ public class OrderedConsumer {
         consumer.setNamesrvAddr("localhost:9876");
         consumer.subscribe("TopicOrder", "TagA || TagC || TagD");
         consumer.registerMessageListener((MessageListenerOrderly) (msgs, context) -> {
-            ConsumerUtil.printfMessages(msgs);
+            for (MessageExt msg : msgs) {
+                byte[] body = msg.getBody();
+                System.out.println(Thread.currentThread().getName() + "消费了：" + new String(body));
+            }
             return ConsumeOrderlyStatus.SUCCESS;
         });
         consumer.start();
