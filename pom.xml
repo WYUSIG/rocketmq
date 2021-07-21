@@ -123,6 +123,7 @@
         <module>logging</module>
         <module>acl</module>
         <module>example</module>
+        <module>my-example</module>
     </modules>
 
     <build>

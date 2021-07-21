@@ -32,7 +32,7 @@ public class Validators {
      * 校验消息
      * @param msg 消息
      * @param defaultMQProducer 消息发送者
-     * @throws MQClientException
+     * @throws MQClientException 异常
      */
     public static void checkMessage(Message msg, DefaultMQProducer defaultMQProducer)
         throws MQClientException {
