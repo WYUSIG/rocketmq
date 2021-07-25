@@ -1,21 +1,17 @@
-package com.sign.www.broadcast;
+package com.sign.www.transaction;
 
 import com.sign.www.util.ConsumerUtil;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
 import org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyStatus;
 import org.apache.rocketmq.client.consumer.listener.MessageListenerConcurrently;
 import org.apache.rocketmq.client.exception.MQClientException;
-import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
-import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
 
-public class BroadcastConsumer2 {
+public class TransactionConsumer {
 
     public static void main(String[] args) throws MQClientException {
-        DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("broadcastConsumerGroup1");
+        DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("TransactionConsumerGroup1");
         consumer.setNamesrvAddr("localhost:9876");
-        consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
-        consumer.setMessageModel(MessageModel.BROADCASTING);
-        consumer.subscribe("TopicBroadcast", "TagA");
+        consumer.subscribe("TopicTransaction", "*");
         consumer.registerMessageListener((MessageListenerConcurrently) (msgs, context) -> {
             ConsumerUtil.printfMessages(msgs);
             return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;

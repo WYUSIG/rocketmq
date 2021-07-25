@@ -6,6 +6,7 @@ import org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyStatus;
 import org.apache.rocketmq.client.consumer.listener.MessageListenerConcurrently;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
+import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
 
 public class BroadcastConsumer1 {
 
@@ -13,6 +14,7 @@ public class BroadcastConsumer1 {
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("broadcastConsumerGroup1");
         consumer.setNamesrvAddr("localhost:9876");
         consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
+        consumer.setMessageModel(MessageModel.BROADCASTING);
         consumer.subscribe("TopicBroadcast", "TagA");
         consumer.registerMessageListener((MessageListenerConcurrently) (msgs, context) -> {
             ConsumerUtil.printfMessages(msgs);

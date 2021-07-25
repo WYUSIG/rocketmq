@@ -15,25 +15,27 @@ public class TransactionListenerImpl implements TransactionListener {
 
     @Override
     public LocalTransactionState executeLocalTransaction(Message msg, Object arg) {
-        int value = transactionIndex.getAndIncrement();
-        int status = value % 3;
-        localTrans.put(msg.getTransactionId(), status);
-        return LocalTransactionState.UNKNOW;
+        System.out.println("executeLocalTransaction");
+//        int value = transactionIndex.getAndIncrement();
+//        int status = value % 3;
+//        localTrans.put(msg.getTransactionId(), status);
+        return LocalTransactionState.COMMIT_MESSAGE;
     }
 
     @Override
     public LocalTransactionState checkLocalTransaction(MessageExt msg) {
-        Integer status = localTrans.get(msg.getTransactionId());
-        if (null != status) {
-            switch (status) {
-                case 0:
-                    return LocalTransactionState.UNKNOW;
-                case 1:
-                    return LocalTransactionState.COMMIT_MESSAGE;
-                case 2:
-                    return LocalTransactionState.ROLLBACK_MESSAGE;
-            }
-        }
+        System.out.println("checkLocalTransaction");
+//        Integer status = localTrans.get(msg.getTransactionId());
+//        if (null != status) {
+//            switch (status) {
+//                case 0:
+//                    return LocalTransactionState.UNKNOW;
+//                case 1:
+//                    return LocalTransactionState.COMMIT_MESSAGE;
+//                case 2:
+//                    return LocalTransactionState.ROLLBACK_MESSAGE;
+//            }
+//        }
         return LocalTransactionState.COMMIT_MESSAGE;
     }
 }
