@@ -59,6 +59,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Wrapping internal implementations for virtually all methods presented in this class.
+     * 委派设计模式
      */
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
     private final InternalLogger log = ClientLogger.getLog();
@@ -123,6 +124,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Default constructor.
+     * 无参构造方法，producer group为 DEFAULT_PRODUCER，但是我们发消息是不可以使用这个group的
      */
     public DefaultMQProducer() {
         this(null, MixAll.DEFAULT_PRODUCER_GROUP, null);
@@ -130,6 +132,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Constructor specifying the RPC hook.
+     * rpc钩子，可以在producer发送rpc之前和之后做一些自定义操作
      *
      * @param rpcHook RPC hook to execute per each remoting command execution.
      */
@@ -139,6 +142,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Constructor specifying producer group.
+     * 几乎没有存在感的producer group
      *
      * @param producerGroup Producer group, see the name-sake field.
      */
@@ -195,6 +199,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Constructor specifying namespace, producer group and RPC hook.
+     * 常用构造方法
      *
      * @param namespace Namespace for this MQ Producer instance.
      * @param producerGroup Producer group, see the name-sake field.
@@ -268,6 +273,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void start() throws MQClientException {
+        //命名空间 + producer group
         this.setProducerGroup(withNamespace(this.producerGroup));
         this.defaultMQProducerImpl.start();
         if (null != traceDispatcher) {

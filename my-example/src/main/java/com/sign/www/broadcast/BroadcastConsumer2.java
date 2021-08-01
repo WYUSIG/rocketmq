@@ -14,7 +14,7 @@ public class BroadcastConsumer2 {
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("broadcastConsumerGroup1");
         consumer.setNamesrvAddr("localhost:9876");
         consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
-        consumer.setMessageModel(MessageModel.BROADCASTING);
+//        consumer.setMessageModel(MessageModel.BROADCASTING);
         consumer.subscribe("TopicBroadcast", "TagA");
         consumer.registerMessageListener((MessageListenerConcurrently) (msgs, context) -> {
             ConsumerUtil.printfMessages(msgs);

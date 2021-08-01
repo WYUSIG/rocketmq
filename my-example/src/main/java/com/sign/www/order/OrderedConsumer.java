@@ -11,6 +11,7 @@ public class OrderedConsumer {
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("orderConsumerGroup1");
         consumer.setNamesrvAddr("localhost:9876");
         consumer.subscribe("TopicOrder", "TagA || TagC || TagD");
+        consumer.setClientCallbackExecutorThreads(1);
         consumer.registerMessageListener((MessageListenerOrderly) (msgs, context) -> {
             for (MessageExt msg : msgs) {
                 byte[] body = msg.getBody();

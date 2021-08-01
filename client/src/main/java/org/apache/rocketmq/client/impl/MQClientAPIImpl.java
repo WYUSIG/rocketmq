@@ -445,9 +445,13 @@ public class MQClientAPIImpl {
         final SendMessageContext context,
         final DefaultMQProducerImpl producer
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //开始时间戳
         long beginStartTime = System.currentTimeMillis();
+        //熟悉的RemotingCommand
         RemotingCommand request = null;
+        //消息类型
         String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE);
+        //是否是重试消息
         boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG);
         if (isReply) {
             if (sendSmartMsg) {
@@ -464,18 +468,25 @@ public class MQClientAPIImpl {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_MESSAGE, requestHeader);
             }
         }
+        //设置body
         request.setBody(msg.getBody());
 
         switch (communicationMode) {
             case ONEWAY:
+                //oneway mode，只管发出去
                 this.remotingClient.invokeOneway(addr, request, timeoutMillis);
                 return null;
             case ASYNC:
+                //异步发送
+                //第一次发送
                 final AtomicInteger times = new AtomicInteger();
+                //已花费时间
                 long costTimeAsync = System.currentTimeMillis() - beginStartTime;
+                //是否已经超时
                 if (timeoutMillis < costTimeAsync) {
                     throw new RemotingTooMuchRequestException("sendMessage call timeout");
                 }
+                //调用sendMessageAsync
                 this.sendMessageAsync(addr, brokerName, msg, timeoutMillis - costTimeAsync, request, sendCallback, topicPublishInfo, instance,
                     retryTimesWhenSendFailed, times, context, producer);
                 return null;
@@ -502,6 +513,7 @@ public class MQClientAPIImpl {
     ) throws RemotingException, MQBrokerException, InterruptedException {
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
+        //解析响应返回
         return this.processSendResponse(brokerName, msg, response,addr);
     }
 
@@ -520,36 +532,41 @@ public class MQClientAPIImpl {
         final DefaultMQProducerImpl producer
     ) throws InterruptedException, RemotingException {
         final long beginStartTime = System.currentTimeMillis();
+        //异步
         this.remotingClient.invokeAsync(addr, request, timeoutMillis, new InvokeCallback() {
             @Override
             public void operationComplete(ResponseFuture responseFuture) {
                 long cost = System.currentTimeMillis() - beginStartTime;
                 RemotingCommand response = responseFuture.getResponseCommand();
                 if (null == sendCallback && response != null) {
-
                     try {
                         SendResult sendResult = MQClientAPIImpl.this.processSendResponse(brokerName, msg, response, addr);
                         if (context != null && sendResult != null) {
                             context.setSendResult(sendResult);
+                            //回调SendMessageHook发送后钩子
                             context.getProducer().executeSendMessageHookAfter(context);
                         }
                     } catch (Throwable e) {
                     }
 
+                    //根据花费时间，更新负载均衡策略判断依据
                     producer.updateFaultItem(brokerName, System.currentTimeMillis() - responseFuture.getBeginTimestamp(), false);
                     return;
                 }
 
                 if (response != null) {
                     try {
+                        //解析响应返回
                         SendResult sendResult = MQClientAPIImpl.this.processSendResponse(brokerName, msg, response, addr);
                         assert sendResult != null;
                         if (context != null) {
                             context.setSendResult(sendResult);
+                            //回调SendMessageHook发送后钩子
                             context.getProducer().executeSendMessageHookAfter(context);
                         }
 
                         try {
+                            //回调
                             sendCallback.onSuccess(sendResult);
                         } catch (Throwable e) {
                         }
