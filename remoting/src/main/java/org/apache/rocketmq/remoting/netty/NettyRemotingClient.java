@@ -370,7 +370,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         throws InterruptedException, RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException {
         //开始时间戳
         long beginStartTime = System.currentTimeMillis();
-        //获取NameServer channel
+        //获取 channel
         final Channel channel = this.getAndCreateChannel(addr);
         if (channel != null && channel.isActive()) {
             try {
