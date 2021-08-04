@@ -139,10 +139,13 @@ public class NamespaceUtil {
     }
 
     public static String getNamespaceFromResource(String resource) {
+        //如果为空或者是系统topic，直接返回""
         if (StringUtils.isEmpty(resource) || isSystemResource(resource)) {
             return STRING_BLANK;
         }
+        //去掉%RETRY%DLQ%
         String resourceWithoutRetryAndDLQ = withOutRetryAndDLQ(resource);
+        //获取%下标  %RETRY%DLQ%namespace%topic
         int index = resourceWithoutRetryAndDLQ.indexOf(NAMESPACE_SEPARATOR);
 
         return index > 0 ? resourceWithoutRetryAndDLQ.substring(0, index) : STRING_BLANK;

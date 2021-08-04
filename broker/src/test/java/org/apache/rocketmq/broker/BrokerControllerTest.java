@@ -56,8 +56,9 @@ public class BrokerControllerTest {
         nettyServerConfig.setListenPort(10911);
         // BrokerConfig 配置
         final BrokerConfig brokerConfig = new BrokerConfig();
-        brokerConfig.setBrokerName("broker-a");
-        brokerConfig.setNamesrvAddr("127.0.0.1:9876");
+        brokerConfig.setBrokerName("broker-b");
+        brokerConfig.setNamesrvAddr("localhost:9876");
+        brokerConfig.setForceRegister(true);
         //允许Filter
         brokerConfig.setEnablePropertyFilter(true);
         // MessageStoreConfig 配置

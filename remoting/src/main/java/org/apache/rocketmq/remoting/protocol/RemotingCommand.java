@@ -231,10 +231,15 @@ public class RemotingCommand {
         this.customHeader = customHeader;
     }
 
+    /**
+     * 解码头部
+     * @param classHeader 解码成指定类
+     */
     public CommandCustomHeader decodeCommandCustomHeader(
         Class<? extends CommandCustomHeader> classHeader) throws RemotingCommandException {
         CommandCustomHeader objectHeader;
         try {
+            //利用反射创建一个目标类对象
             objectHeader = classHeader.newInstance();
         } catch (InstantiationException e) {
             return null;
@@ -242,40 +247,55 @@ public class RemotingCommand {
             return null;
         }
 
+        //如果RemotingCommand的扩展字段不为空
         if (this.extFields != null) {
 
+            //获取目标类的所有字段(有缓存)
             Field[] fields = getClazzFields(classHeader);
+            //遍历每个字段进行赋值
             for (Field field : fields) {
+                //如果该字段不是static修饰
                 if (!Modifier.isStatic(field.getModifiers())) {
+                    //字段名
                     String fieldName = field.getName();
+                    //如果字段名不是this开头
                     if (!fieldName.startsWith("this")) {
                         try {
+                            //根据字段名，从RemotingCommand的扩展字段中拿到值
                             String value = this.extFields.get(fieldName);
                             if (null == value) {
+                                //如果该值不允许为空，抛出异常
                                 if (!isFieldNullable(field)) {
                                     throw new RemotingCommandException("the custom field <" + fieldName + "> is null");
                                 }
                                 continue;
                             }
 
+                            //private字段的话，需要先获得权限
                             field.setAccessible(true);
+                            //字段类型
                             String type = getCanonicalName(field.getType());
                             Object valueParsed;
-
                             if (type.equals(STRING_CANONICAL_NAME)) {
+                                //String类型
                                 valueParsed = value;
                             } else if (type.equals(INTEGER_CANONICAL_NAME_1) || type.equals(INTEGER_CANONICAL_NAME_2)) {
+                                //Integer或者int类型
                                 valueParsed = Integer.parseInt(value);
                             } else if (type.equals(LONG_CANONICAL_NAME_1) || type.equals(LONG_CANONICAL_NAME_2)) {
+                                //Long或者long类型
                                 valueParsed = Long.parseLong(value);
                             } else if (type.equals(BOOLEAN_CANONICAL_NAME_1) || type.equals(BOOLEAN_CANONICAL_NAME_2)) {
+                                //Boolean或者boolean类型
                                 valueParsed = Boolean.parseBoolean(value);
                             } else if (type.equals(DOUBLE_CANONICAL_NAME_1) || type.equals(DOUBLE_CANONICAL_NAME_2)) {
+                                //Double或者double类型
                                 valueParsed = Double.parseDouble(value);
                             } else {
                                 throw new RemotingCommandException("the custom field <" + fieldName + "> type is not supported");
                             }
 
+                            //把值放进反射出来的对象
                             field.set(objectHeader, valueParsed);
 
                         } catch (Throwable e) {
@@ -285,9 +305,11 @@ public class RemotingCommand {
                 }
             }
 
+            //检查字段
             objectHeader.checkFields();
         }
 
+        //返回
         return objectHeader;
     }
 

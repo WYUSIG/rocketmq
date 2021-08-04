@@ -70,27 +70,47 @@ public abstract class AbstractSendMessageProcessor extends AsyncNettyRequestProc
                 .getNettyServerConfig().getListenPort());
     }
 
+    /**
+     * 构建SendMessageContext
+     * @param ctx ChannelHandlerContext
+     * @param requestHeader SendMessageRequestHeader
+     */
     protected SendMessageContext buildMsgContext(ChannelHandlerContext ctx,
         SendMessageRequestHeader requestHeader) {
+        //如果没有发送消息钩子，直接返回
         if (!this.hasSendMessageHook()) {
             return null;
         }
+        //拿到namespace
         String namespace = NamespaceUtil.getNamespaceFromResource(requestHeader.getTopic());
         SendMessageContext mqtraceContext;
         mqtraceContext = new SendMessageContext();
+        //生产者组
         mqtraceContext.setProducerGroup(requestHeader.getProducerGroup());
+        //namespace
         mqtraceContext.setNamespace(namespace);
+        //topic
         mqtraceContext.setTopic(requestHeader.getTopic());
+        //消息属性
         mqtraceContext.setMsgProps(requestHeader.getProperties());
+        //消息来源ip
         mqtraceContext.setBornHost(RemotingHelper.parseChannelRemoteAddr(ctx.channel()));
+        //broker地址
         mqtraceContext.setBrokerAddr(this.brokerController.getBrokerAddr());
+        //broker 分区id
         mqtraceContext.setBrokerRegionId(this.brokerController.getBrokerConfig().getRegionId());
+        //消息开始时间戳
         mqtraceContext.setBornTimeStamp(requestHeader.getBornTimestamp());
 
+        //解码消息属性
         Map<String, String> properties = MessageDecoder.string2messageProperties(requestHeader.getProperties());
+        //uniqueKey
         String uniqueKey = properties.get(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX);
+        //broker 分区id
         properties.put(MessageConst.PROPERTY_MSG_REGION, this.brokerController.getBrokerConfig().getRegionId());
+        //traceOn 默认true
         properties.put(MessageConst.PROPERTY_TRACE_SWITCH, String.valueOf(this.brokerController.getBrokerConfig().isTraceOn()));
+        //再次编码成string
         requestHeader.setProperties(MessageDecoder.messageProperties2String(properties));
 
         if (uniqueKey == null) {
@@ -280,6 +300,9 @@ public abstract class AbstractSendMessageProcessor extends AsyncNettyRequestProc
         }
     }
 
+    /**
+     * 解析出SendMessageRequestHeader
+     */
     protected SendMessageRequestHeader parseRequestHeader(RemotingCommand request)
         throws RemotingCommandException {
 
