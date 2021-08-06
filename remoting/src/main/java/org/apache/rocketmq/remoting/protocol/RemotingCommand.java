@@ -462,6 +462,9 @@ public class RemotingCommand {
         return (this.flag & bits) == bits;
     }
 
+    /**
+     * @see RemotingSysResponseCode
+     */
     public int getCode() {
         return code;
     }

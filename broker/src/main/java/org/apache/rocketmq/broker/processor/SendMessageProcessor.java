@@ -266,7 +266,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         final SendMessageResponseHeader responseHeader = (SendMessageResponseHeader)response.readCustomHeader();
 
         /**
-         * 
+         * 不是-1证明已经有结果，直接异步完成
          */
         if (response.getCode() != -1) {
             return CompletableFuture.completedFuture(response);
@@ -274,31 +274,45 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
 
         final byte[] body = request.getBody();
 
+        //message queue id
         int queueIdInt = requestHeader.getQueueId();
         TopicConfig topicConfig = this.brokerController.getTopicConfigManager().selectTopicConfig(requestHeader.getTopic());
 
         if (queueIdInt < 0) {
+            //如果queueId小于0，则随机选择一个写message queue
             queueIdInt = randomQueueId(topicConfig.getWriteQueueNums());
         }
 
+        /**
+         * broker扩展的消息，基于Message
+         */
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
         msgInner.setTopic(requestHeader.getTopic());
         msgInner.setQueueId(queueIdInt);
 
+        //如果重试超出一定次数直接放进死信队列
         if (!handleRetryAndDLQ(requestHeader, response, request, msgInner, topicConfig)) {
+            //如果是重试消息，但是没有消费者组或者创建topic失败，直接返回
             return CompletableFuture.completedFuture(response);
         }
 
+        //把消息各项属性赋值到broker扩展的消息msgInner
         msgInner.setBody(body);
         msgInner.setFlag(requestHeader.getFlag());
+        //String->Map<String, String>
         MessageAccessor.setProperties(msgInner, MessageDecoder.string2messageProperties(requestHeader.getProperties()));
+        //String类型的消息拓展属性
         msgInner.setPropertiesString(requestHeader.getProperties());
         msgInner.setBornTimestamp(requestHeader.getBornTimestamp());
         msgInner.setBornHost(ctx.channel().remoteAddress());
+        //存储地址
         msgInner.setStoreHost(this.getStoreHost());
         msgInner.setReconsumeTimes(requestHeader.getReconsumeTimes() == null ? 0 : requestHeader.getReconsumeTimes());
+        //broker集群名称
         String clusterName = this.brokerController.getBrokerConfig().getBrokerClusterName();
+        //把broker集群名称添加到属性
         MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_CLUSTER, clusterName);
+        //因为加了属性，所以再次把消息拓展属性编码成String
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgInner.getProperties()));
 
         CompletableFuture<PutMessageResult> putMessageResult = null;
@@ -332,29 +346,43 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         );
     }
 
+    /**
+     * 处理重试和死信消息
+     */
     private boolean handleRetryAndDLQ(SendMessageRequestHeader requestHeader, RemotingCommand response,
                                       RemotingCommand request,
                                       MessageExt msg, TopicConfig topicConfig) {
         String newTopic = requestHeader.getTopic();
+        //如果topic不是空且以%RETRY%开头
         if (null != newTopic && newTopic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
+            //去掉%RETRY%前缀
             String groupName = newTopic.substring(MixAll.RETRY_GROUP_TOPIC_PREFIX.length());
+            //获取订阅组配置
             SubscriptionGroupConfig subscriptionGroupConfig =
                 this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(groupName);
             if (null == subscriptionGroupConfig) {
+                //没有消费者组订阅
                 response.setCode(ResponseCode.SUBSCRIPTION_GROUP_NOT_EXIST);
                 response.setRemark(
                     "subscription group not exist, " + groupName + " " + FAQUrl.suggestTodo(FAQUrl.SUBSCRIPTION_GROUP_NOT_EXIST));
                 return false;
             }
 
+            //获取订阅组配置最大重试次数
             int maxReconsumeTimes = subscriptionGroupConfig.getRetryMaxTimes();
+            //如果请求的版本大于3.4.9，最大重试次数取请求自带的
             if (request.getVersion() >= MQVersion.Version.V3_4_9.ordinal()) {
                 maxReconsumeTimes = requestHeader.getMaxReconsumeTimes();
             }
+            //已重试次数默认0
             int reconsumeTimes = requestHeader.getReconsumeTimes() == null ? 0 : requestHeader.getReconsumeTimes();
+            //如果已达到最大重试次数，进入死信队列
             if (reconsumeTimes >= maxReconsumeTimes) {
+                //topic加上死信队列前缀%DLQ%
                 newTopic = MixAll.getDLQTopic(groupName);
+                //随机挑选一个死信MessageQueue
                 int queueIdInt = Math.abs(this.random.nextInt() % 99999999) % DLQ_NUMS_PER_GROUP;
+                //获取这个加了死信前缀的topic的配置，获取不到就会创建topic
                 topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(newTopic,
                     DLQ_NUMS_PER_GROUP,
                     PermName.PERM_WRITE, 0
@@ -362,6 +390,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                 msg.setTopic(newTopic);
                 msg.setQueueId(queueIdInt);
                 if (null == topicConfig) {
+                    //创建topic失败
                     response.setCode(ResponseCode.SYSTEM_ERROR);
                     response.setRemark("topic[" + newTopic + "] not exist");
                     return false;
