@@ -556,34 +556,46 @@ public class CommitLog {
     }
 
     public CompletableFuture<PutMessageResult> asyncPutMessage(final MessageExtBrokerInner msg) {
-        // Set the storage time
+        // Set the storage time 存储时间
         msg.setStoreTimestamp(System.currentTimeMillis());
         // Set the message body BODY CRC (consider the most appropriate setting
-        // on the client)
+        // on the client)  crc32校验码，长度校验
         msg.setBodyCRC(UtilAll.crc32(msg.getBody()));
         // Back to Results
         AppendMessageResult result = null;
 
+        //
         StoreStatsService storeStatsService = this.defaultMessageStore.getStoreStatsService();
 
         String topic = msg.getTopic();
         int queueId = msg.getQueueId();
 
+        //事务标志
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
+        //如果不是事务消息或者是事务commit消息
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
                 || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
-            // Delay Delivery
+            // Delay Delivery 如果是延迟消息
             if (msg.getDelayTimeLevel() > 0) {
+                //如果延迟等级大于最大延迟等级，重新赋值为最大延迟等级
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
                 }
 
+                //重新设置topic为SCHEDULE_TOPIC_XXXX
                 topic = TopicValidator.RMQ_SYS_SCHEDULE_TOPIC;
+                /**
+                 * 根据延迟等级获取MessageQueueId
+                 * @see org.apache.rocketmq.store.config.MessageStoreConfig#messageDelayLevel
+                 * 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
+                 */
                 queueId = ScheduleMessageService.delayLevel2QueueId(msg.getDelayTimeLevel());
 
-                // Backup real topic, queueId
+                // Backup real topic, queueId 真实topic
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_TOPIC, msg.getTopic());
+                //真实的MessageQueueId
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_QUEUE_ID, String.valueOf(msg.getQueueId()));
+                //因为加了两个属性，重新编码属性为String
                 msg.setPropertiesString(MessageDecoder.messageProperties2String(msg.getProperties()));
 
                 msg.setTopic(topic);
@@ -591,12 +603,16 @@ public class CommitLog {
             }
         }
 
+        //已消耗时间
         long elapsedTimeInLock = 0;
         MappedFile unlockMappedFile = null;
+        //获取最后一个MappedFile(顺序写特性)
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
 
+        //存储消息需要先获取锁
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
         try {
+            //锁开始时间
             long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
             this.beginTimeInLock = beginLockTimestamp;
 

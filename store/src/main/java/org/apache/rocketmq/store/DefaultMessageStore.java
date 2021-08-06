@@ -414,33 +414,46 @@ public class DefaultMessageStore implements MessageStore {
         return PutMessageStatus.PUT_OK;
     }
 
+    /**
+     * 异步保存消息
+     * @param msg MessageInstance to store
+     * @return
+     */
     @Override
     public CompletableFuture<PutMessageResult> asyncPutMessage(MessageExtBrokerInner msg) {
+        //检查存储器是否已启动
         PutMessageStatus checkStoreStatus = this.checkStoreStatus();
         if (checkStoreStatus != PutMessageStatus.PUT_OK) {
             return CompletableFuture.completedFuture(new PutMessageResult(checkStoreStatus, null));
         }
-
+        //简单校验消息，topic是否过长，消息扩展属性是否过长
         PutMessageStatus msgCheckStatus = this.checkMessage(msg);
         if (msgCheckStatus == PutMessageStatus.MESSAGE_ILLEGAL) {
             return CompletableFuture.completedFuture(new PutMessageResult(msgCheckStatus, null));
         }
 
+        //开始时间
         long beginTime = this.getSystemClock().now();
+        //异步存储消息
         CompletableFuture<PutMessageResult> putResultFuture = this.commitLog.asyncPutMessage(msg);
 
         putResultFuture.thenAccept((result) -> {
+            //消耗时间
             long elapsedTime = this.getSystemClock().now() - beginTime;
             if (elapsedTime > 500) {
+                //存储消耗时间过长警告
                 log.warn("putMessage not in lock elapsed time(ms)={}, bodyLength={}", elapsedTime, msg.getBody().length);
             }
+            //更新存储时间各级别个数、最大存储时间
             this.storeStatsService.setPutMessageEntireTimeMax(elapsedTime);
 
             if (null == result || !result.isOk()) {
+                //存储失败次数+1
                 this.storeStatsService.getPutMessageFailedTimes().incrementAndGet();
             }
         });
 
+        //返回异步结果
         return putResultFuture;
     }
 
