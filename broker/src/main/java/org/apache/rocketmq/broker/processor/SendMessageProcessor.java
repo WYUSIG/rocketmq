@@ -315,10 +315,13 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         //因为加了属性，所以再次把消息拓展属性编码成String
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgInner.getProperties()));
 
+        //存储消息结果
         CompletableFuture<PutMessageResult> putMessageResult = null;
         Map<String, String> origProps = MessageDecoder.string2messageProperties(requestHeader.getProperties());
         String transFlag = origProps.get(MessageConst.PROPERTY_TRANSACTION_PREPARED);
+        //如果是事务消息
         if (transFlag != null && Boolean.parseBoolean(transFlag)) {
+            //如果拒绝事务消息
             if (this.brokerController.getBrokerConfig().isRejectTransactionMessage()) {
                 response.setCode(ResponseCode.NO_PERMISSION);
                 response.setRemark(
