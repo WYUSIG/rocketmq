@@ -64,9 +64,12 @@ public class MessageDecoder {
         int msgIDLength = addr.limit() == 8 ? 16 : 28;
         input.limit(msgIDLength);
 
+        //存储的ip+端口
         input.put(addr);
+        //这次将要写的文件偏移量
         input.putLong(offset);
 
+        //byte数组转字符串
         return UtilAll.bytes2string(input.array());
     }
 

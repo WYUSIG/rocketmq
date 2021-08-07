@@ -244,7 +244,7 @@ public class MappedFile extends ReferenceResource {
                 //未知消息类型
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
             }
-            //写入位置+1
+            //写入位置+消息存储大小
             this.wrotePosition.addAndGet(result.getWroteBytes());
             //获取存储时间
             this.storeTimestamp = result.getStoreTimestamp();
