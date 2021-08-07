@@ -225,18 +225,20 @@ public class MappedFile extends ReferenceResource {
         //断言判断回调不为空
         assert cb != null;
 
-        //获取append写入位置
+        //获取append可写入位置
         int currentPos = this.wrotePosition.get();
         //如果写入位置小于文件偏移量大小，正常写
         if (currentPos < this.fileSize) {
-            //writeBuffer > mappedByteBuffer
+            //缓冲区 writeBuffer > mappedByteBuffer
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
             //设置byteBuffer位置
             byteBuffer.position(currentPos);
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
+                //普通消息
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
             } else if (messageExt instanceof MessageExtBatch) {
+                //批量消息
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBatch) messageExt);
             } else {
                 //未知消息类型
