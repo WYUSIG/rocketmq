@@ -650,7 +650,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         this.mQClientFactory.rebalanceImmediately();
     }
 
+    /**
+     * 检查consumer配置
+     */
     private void checkConfig() throws MQClientException {
+        //ConsumerGroup不能为空，长度不能超过255，只能数字和字母
         Validators.checkGroup(this.defaultMQPushConsumer.getConsumerGroup());
 
         if (null == this.defaultMQPushConsumer.getConsumerGroup()) {
