@@ -978,25 +978,39 @@ public class CommitLog {
         return putMessageResult;
     }
 
+    /**
+     * submit或flush
+     */
     public CompletableFuture<PutMessageStatus> submitFlushRequest(AppendMessageResult result, MessageExt messageExt) {
         // Synchronization flush 同步刷盘
         if (FlushDiskType.SYNC_FLUSH == this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
+            //组合提交方式
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
             if (messageExt.isWaitStoreMsgOK()) {
+                //如果消息存储状态还没好
                 GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes(),
                         this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout());
+                //就把该消息加入下次刷盘请求中
                 service.putRequest(request);
                 return request.future();
             } else {
+                //直接commit
                 service.wakeup();
                 return CompletableFuture.completedFuture(PutMessageStatus.PUT_OK);
             }
         }
-        // Asynchronous flush 异步刷盘
+        /**
+         * Asynchronous flush 异步刷盘
+         * @see org.apache.rocketmq.store.CommitLog.FlushRealTimeService
+         * @see CommitRealTimeService
+         * @see GroupCommitService
+          */
         else {
             if (!this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
+                //flush
                 flushCommitLogService.wakeup();
             } else  {
+                //commit
                 commitLogService.wakeup();
             }
             return CompletableFuture.completedFuture(PutMessageStatus.PUT_OK);
@@ -1306,6 +1320,9 @@ public class CommitLog {
         protected static final int RETRY_TIMES_OVER = 10;
     }
 
+    /**
+     * 实时commit的刷盘
+     */
     class CommitRealTimeService extends FlushCommitLogService {
 
         private long lastCommitTimestamp = 0;
@@ -1319,8 +1336,10 @@ public class CommitLog {
         public void run() {
             CommitLog.log.info(this.getServiceName() + " service started");
             while (!this.isStopped()) {
+                //commit执行间隔
                 int interval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitIntervalCommitLog();
 
+                //commit最少页数
                 int commitDataLeastPages = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitCommitLogLeastPages();
 
                 int commitDataThoroughInterval =
@@ -1350,6 +1369,7 @@ public class CommitLog {
                 }
             }
 
+            //服务结束后，把剩余的都提交
             boolean result = false;
             for (int i = 0; i < RETRY_TIMES_OVER && !result; i++) {
                 result = CommitLog.this.mappedFileQueue.commit(0);
@@ -1542,6 +1562,7 @@ public class CommitLog {
 
             while (!this.isStopped()) {
                 try {
+                    //每隔10秒一次循环
                     this.waitForRunning(10);
                     this.doCommit();
                 } catch (Exception e) {
