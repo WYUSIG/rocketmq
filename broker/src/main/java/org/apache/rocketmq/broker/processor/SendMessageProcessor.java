@@ -321,7 +321,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         String transFlag = origProps.get(MessageConst.PROPERTY_TRANSACTION_PREPARED);
         //如果是事务消息
         if (transFlag != null && Boolean.parseBoolean(transFlag)) {
-            //如果拒绝事务消息
+            //如果禁止事务消息
             if (this.brokerController.getBrokerConfig().isRejectTransactionMessage()) {
                 response.setCode(ResponseCode.NO_PERMISSION);
                 response.setRemark(
@@ -329,10 +329,13 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                                 + "] sending transaction message is forbidden");
                 return CompletableFuture.completedFuture(response);
             }
+            //事务消息保存
             putMessageResult = this.brokerController.getTransactionalMessageService().asyncPrepareMessage(msgInner);
         } else {
+            //普通消息保存
             putMessageResult = this.brokerController.getMessageStore().asyncPutMessage(msgInner);
         }
+        //处理保存结果
         return handlePutMessageResultFuture(putMessageResult, response, request, msgInner, responseHeader, mqtraceContext, ctx, queueIdInt);
     }
 
